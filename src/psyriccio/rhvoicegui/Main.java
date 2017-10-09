@@ -1,5 +1,6 @@
 package psyriccio.rhvoicegui;
 
+import java.io.IOException;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import javax.swing.UIManager;
@@ -18,8 +19,12 @@ public class Main {
             } catch (UnsupportedLookAndFeelException ex) {
                 Logger.getLogger(Main.class.getName()).log(Level.SEVERE, null, ex);
             }
-            MAIN_FORM = new MainForm();
-            MAIN_FORM.setVisible(true);
+            try {
+                MAIN_FORM = new MainForm();
+                MAIN_FORM.setVisible(true);
+            } catch (IOException | InterruptedException ex) {
+                Logger.getLogger(Main.class.getName()).log(Level.SEVERE, null, ex);
+            }
         });
     }
 }
