@@ -183,7 +183,8 @@ public class MainForm extends javax.swing.JFrame {
         }
         try {
             Files.write(jTextPane.getText().getBytes("UTF-8"), file);
-            execAndWait("cat /tmp/rhvoice-gui-text.txt | RHVoice-client -s aleksandr -r 0 -p 0 > /tmp/rhvoice-gui-rendered.wav");
+            String result = execAndWait("cat /tmp/rhvoice-gui-text.txt | RHVoice-client -s aleksandr -r 0 -p 0 -- | aplay");
+            System.out.println(result);
             if(rndFile.exists()) {
                 rendered = true;
             }
@@ -195,7 +196,9 @@ public class MainForm extends javax.swing.JFrame {
     }
     
     private void jButtonPlayActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_jButtonPlayActionPerformed
-        
+        if(!rendered) {
+            render();
+        }
     }//GEN-LAST:event_jButtonPlayActionPerformed
 
     private void jTextPaneVetoableChange(java.beans.PropertyChangeEvent evt)throws java.beans.PropertyVetoException {//GEN-FIRST:event_jTextPaneVetoableChange
