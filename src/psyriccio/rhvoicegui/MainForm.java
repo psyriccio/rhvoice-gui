@@ -6,8 +6,11 @@
 package psyriccio.rhvoicegui;
 
 import com.google.common.io.ByteStreams;
+import com.google.common.io.Files;
+import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.UnsupportedEncodingException;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import javax.swing.DefaultComboBoxModel;
@@ -18,6 +21,7 @@ import javax.swing.DefaultComboBoxModel;
  */
 public class MainForm extends javax.swing.JFrame {
 
+    private boolean rendered = false;
     private RHVoiceServiceThread serviceThread;
     
     private static String execAndWait(String cmd) {
@@ -68,6 +72,7 @@ public class MainForm extends javax.swing.JFrame {
         jComboBoxVoice = new javax.swing.JComboBox<>();
         jSlider1 = new javax.swing.JSlider();
         jSlider2 = new javax.swing.JSlider();
+        jButtonPlay = new javax.swing.JButton();
 
         setDefaultCloseOperation(javax.swing.WindowConstants.DISPOSE_ON_CLOSE);
         setTitle("RHVoice-gui");
@@ -79,6 +84,11 @@ public class MainForm extends javax.swing.JFrame {
 
         jLabelInfo.setText("   ");
 
+        jTextPane.addVetoableChangeListener(new java.beans.VetoableChangeListener() {
+            public void vetoableChange(java.beans.PropertyChangeEvent evt)throws java.beans.PropertyVetoException {
+                jTextPaneVetoableChange(evt);
+            }
+        });
         jScrollPane1.setViewportView(jTextPane);
 
         jSlider1.setFont(new java.awt.Font("Dialog", 1, 5)); // NOI18N
@@ -88,8 +98,9 @@ public class MainForm extends javax.swing.JFrame {
         jSlider1.setMinorTickSpacing(1);
         jSlider1.setPaintLabels(true);
         jSlider1.setPaintTicks(true);
-        jSlider1.setToolTipText("");
+        jSlider1.setToolTipText("Rate");
         jSlider1.setValue(0);
+        jSlider1.setName(""); // NOI18N
 
         jSlider2.setFont(new java.awt.Font("Dialog", 1, 5)); // NOI18N
         jSlider2.setMajorTickSpacing(5);
@@ -98,7 +109,19 @@ public class MainForm extends javax.swing.JFrame {
         jSlider2.setMinorTickSpacing(1);
         jSlider2.setPaintLabels(true);
         jSlider2.setPaintTicks(true);
+        jSlider2.setToolTipText("Pitch");
         jSlider2.setValue(0);
+
+        jButtonPlay.setText("‣");
+        jButtonPlay.setMargin(new java.awt.Insets(0, 0, 0, 0));
+        jButtonPlay.setMaximumSize(new java.awt.Dimension(32, 32));
+        jButtonPlay.setMinimumSize(new java.awt.Dimension(32, 32));
+        jButtonPlay.setPreferredSize(new java.awt.Dimension(32, 32));
+        jButtonPlay.addActionListener(new java.awt.event.ActionListener() {
+            public void actionPerformed(java.awt.event.ActionEvent evt) {
+                jButtonPlayActionPerformed(evt);
+            }
+        });
 
         javax.swing.GroupLayout layout = new javax.swing.GroupLayout(getContentPane());
         getContentPane().setLayout(layout);
@@ -111,7 +134,9 @@ public class MainForm extends javax.swing.JFrame {
                 .addComponent(jSlider1, javax.swing.GroupLayout.PREFERRED_SIZE, 225, javax.swing.GroupLayout.PREFERRED_SIZE)
                 .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
                 .addComponent(jSlider2, javax.swing.GroupLayout.PREFERRED_SIZE, 225, javax.swing.GroupLayout.PREFERRED_SIZE)
-                .addContainerGap(28, Short.MAX_VALUE))
+                .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
+                .addComponent(jButtonPlay, javax.swing.GroupLayout.PREFERRED_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE)
+                .addContainerGap(93, Short.MAX_VALUE))
             .addComponent(jScrollPane1)
         );
         layout.setVerticalGroup(
@@ -119,11 +144,13 @@ public class MainForm extends javax.swing.JFrame {
             .addGroup(layout.createSequentialGroup()
                 .addComponent(jLabelInfo)
                 .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
-                .addGroup(layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING, false)
-                    .addGroup(layout.createParallelGroup(javax.swing.GroupLayout.Alignment.BASELINE)
-                        .addComponent(jSlider1, javax.swing.GroupLayout.PREFERRED_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE)
-                        .addComponent(jSlider2, javax.swing.GroupLayout.PREFERRED_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE))
-                    .addComponent(jComboBoxVoice))
+                .addGroup(layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
+                    .addGroup(layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING, false)
+                        .addGroup(layout.createParallelGroup(javax.swing.GroupLayout.Alignment.BASELINE)
+                            .addComponent(jSlider1, javax.swing.GroupLayout.PREFERRED_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE)
+                            .addComponent(jSlider2, javax.swing.GroupLayout.PREFERRED_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE))
+                        .addComponent(jComboBoxVoice))
+                    .addComponent(jButtonPlay, javax.swing.GroupLayout.Alignment.TRAILING, javax.swing.GroupLayout.PREFERRED_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE))
                 .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
                 .addComponent(jScrollPane1, javax.swing.GroupLayout.PREFERRED_SIZE, 211, javax.swing.GroupLayout.PREFERRED_SIZE)
                 .addContainerGap(193, Short.MAX_VALUE))
@@ -145,8 +172,39 @@ public class MainForm extends javax.swing.JFrame {
         }
     }//GEN-LAST:event_formWindowClosing
 
+    private void render() {
+        File file = new File("/tmp/rhvoice-gui-text.txt");
+        File rndFile = new File("/tmp/rhvoice-gui-rendered.wav");
+        if(file.exists()) {
+            file.delete();
+        }
+        if(rndFile.exists()) {
+            rndFile.delete();
+        }
+        try {
+            Files.write(jTextPane.getText().getBytes("UTF-8"), file);
+            execAndWait("cat /tmp/rhvoice-gui-text.txt | RHVoice-client -s aleksandr -r 0 -p 0 > /tmp/rhvoice-gui-rendered.wav");
+            if(rndFile.exists()) {
+                rendered = true;
+            }
+        } catch (UnsupportedEncodingException ex) {
+            Logger.getLogger(MainForm.class.getName()).log(Level.SEVERE, null, ex);
+        } catch (IOException ex) {
+            Logger.getLogger(MainForm.class.getName()).log(Level.SEVERE, null, ex);
+        }
+    }
+    
+    private void jButtonPlayActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_jButtonPlayActionPerformed
+        
+    }//GEN-LAST:event_jButtonPlayActionPerformed
+
+    private void jTextPaneVetoableChange(java.beans.PropertyChangeEvent evt)throws java.beans.PropertyVetoException {//GEN-FIRST:event_jTextPaneVetoableChange
+        rendered = false;
+    }//GEN-LAST:event_jTextPaneVetoableChange
+
 
     // Variables declaration - do not modify//GEN-BEGIN:variables
+    private javax.swing.JButton jButtonPlay;
     private javax.swing.JComboBox<String> jComboBoxVoice;
     private javax.swing.JLabel jLabelInfo;
     private javax.swing.JScrollPane jScrollPane1;
