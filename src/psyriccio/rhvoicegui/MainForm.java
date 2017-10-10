@@ -10,9 +10,14 @@ import com.google.common.io.Files;
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.OutputStream;
 import java.io.UnsupportedEncodingException;
 import java.util.logging.Level;
 import java.util.logging.Logger;
+import javax.sound.sampled.AudioSystem;
+import javax.sound.sampled.Clip;
+import javax.sound.sampled.LineUnavailableException;
+import javax.sound.sampled.UnsupportedAudioFileException;
 import javax.swing.DefaultComboBoxModel;
 
 /**
@@ -22,7 +27,9 @@ import javax.swing.DefaultComboBoxModel;
 public class MainForm extends javax.swing.JFrame {
 
     private boolean rendered = false;
-    private RHVoiceServiceThread serviceThread;
+    private final RHVoiceServiceThread serviceThread;
+    private byte[] wav;
+    private final String[] voices;
     
     private static String execAndWait(String cmd) {
         String result = "";
@@ -43,6 +50,29 @@ public class MainForm extends javax.swing.JFrame {
         return result;
     }
     
+    private static byte[] execProcess(String cmd, byte[] data) {
+        byte[] result;
+        Process exec;
+        try {
+            exec = Runtime.getRuntime().exec(cmd);
+            InputStream inStr = exec.getInputStream();
+            try (OutputStream outStr = exec.getOutputStream()) {
+                outStr.write(data);
+                outStr.flush();
+            }
+            while(exec.isAlive()) {
+                try {
+                    Thread.sleep(100);
+                } catch (InterruptedException ex) {
+                }
+            }
+            result = ByteStreams.toByteArray(inStr);
+        } catch (IOException ex) {
+            result = null;
+        }
+        return result;
+    }
+    
     /**
      * Creates new form MainForm
      */
@@ -52,7 +82,7 @@ public class MainForm extends javax.swing.JFrame {
         serviceThread.start();
         Thread.sleep(500);
         String version = execAndWait("RHVoice-client --version");
-        String[] voices = execAndWait("ls -m /usr/share/RHVoice/voices/").split(", ");
+        voices = execAndWait("ls -m /usr/share/RHVoice/voices/").split(", ");
         jLabelInfo.setText(version);
         jComboBoxVoice.setModel(new DefaultComboBoxModel<>(voices));
     }
@@ -173,24 +203,33 @@ public class MainForm extends javax.swing.JFrame {
     }//GEN-LAST:event_formWindowClosing
 
     private void render() {
-        File file = new File("/tmp/rhvoice-gui-text.txt");
-        File rndFile = new File("/tmp/rhvoice-gui-rendered.wav");
-        if(file.exists()) {
-            file.delete();
-        }
-        if(rndFile.exists()) {
-            rndFile.delete();
-        }
         try {
-            Files.write(jTextPane.getText().getBytes("UTF-8"), file);
-            String result = execAndWait("cat /tmp/rhvoice-gui-text.txt | RHVoice-client -s aleksandr -r 0 -p 0 -- | aplay");
-            System.out.println(result);
-            if(rndFile.exists()) {
-                rendered = true;
+            byte[] data = jTextPane.getText().getBytes("UTF-8");
+            double rate = jSlider1.getValue() / 10.0d;
+            double pitch = jSlider2.getValue() / 10.0d;
+            wav = execProcess("RHVoice-client -s " + voices[jComboBoxVoice.getSelectedIndex()] + " -r " + Double.toString(rate) + " -p " + Double.toString(pitch) + " -- ", data);
+            File fl = new File("/tmp/rhvoice.wav");
+            if(fl.exists()) {
+                fl.delete();
+            }
+            try {
+                Files.write(wav, fl);
+            } catch (IOException ex) {
+                Logger.getLogger(MainForm.class.getName()).log(Level.SEVERE, null, ex);
+            }
+            rendered = true;
+            try {
+                Clip clip = AudioSystem.getClip();
+                clip.open(AudioSystem.getAudioInputStream(fl));
+                clip.start();
+            } catch (LineUnavailableException ex) {
+                Logger.getLogger(MainForm.class.getName()).log(Level.SEVERE, null, ex);
+            } catch (UnsupportedAudioFileException ex) {
+                Logger.getLogger(MainForm.class.getName()).log(Level.SEVERE, null, ex);
+            } catch (IOException ex) {
+                Logger.getLogger(MainForm.class.getName()).log(Level.SEVERE, null, ex);
             }
         } catch (UnsupportedEncodingException ex) {
-            Logger.getLogger(MainForm.class.getName()).log(Level.SEVERE, null, ex);
-        } catch (IOException ex) {
             Logger.getLogger(MainForm.class.getName()).log(Level.SEVERE, null, ex);
         }
     }
